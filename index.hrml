@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Focus Pomodoro Pro</title>
+<link rel="manifest" href="manifest.json">
+
+<!-- Chart.js for analytics -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+:root{--bg:#000;--fg:#fff;--border:#fff;--soft:#111;--gap:14px}
+body.light{--bg:#fff;--fg:#000;--border:#000;--soft:#eee}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+ margin:0;background:var(--bg);color:var(--fg);
+ font-family:system-ui,monospace;
+ display:flex;justify-content:center;align-items:center;
+ transition:.3s;
+}
+
+.panel{width:560px;max-width:100vw;border:2px solid var(--border);padding:16px;animation:fade .4s ease}
+.stack>*{margin-top:var(--gap)}
+
+h1{margin:0;text-align:center;font-size:16px;letter-spacing:2px}
+.small{font-size:11px;opacity:.75;text-align:center}
+
+.row{display:flex;gap:8px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+
+button,input,select{border:1px solid var(--border);background:var(--bg);color:var(--fg);font-family:inherit}
+button{padding:14px 8px;font-size:13px;cursor:pointer}
+button:active{transform:scale(.96)}
+input,select{padding:14px 10px;font-size:14px;width:100%}
+
+.circle{position:relative;width:200px;height:200px;margin:auto}
+svg{width:100%;height:100%;transform:rotate(-90deg)}
+.bg{fill:none;stroke:var(--border);stroke-width:6;opacity:.2}
+.fg{fill:none;stroke:var(--border);stroke-width:6;stroke-dasharray:565;stroke-dashoffset:565;transition:stroke-dashoffset 1s linear}
+.time{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:36px}
+
+.history{max-height:140px;overflow:auto;border-top:1px solid var(--border);padding-top:8px;font-size:12px}
+.item{padding:6px 0;border-bottom:1px dashed var(--border)}
+
+.overlay{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:9999}
+.overlay.show{display:flex}
+
+canvas{background:var(--bg);border:1px solid var(--border);padding:8px}
+
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+
+/* mobile hardening */
+@media(max-width:480px){
+ .panel{border-width:1px;padding:12px}
+ .circle{width:160px;height:160px}
+ .time{font-size:28px}
+ button{padding:16px 6px}
+}
+</style>
+</head>
+<body>
+
+<div class="overlay" id="lockOverlay"><h1>FOCUS</h1></div>
+
+<div class="panel stack" id="app">
+<h1>FOCUS POMODORO PRO</h1>
+
+<div class="row">
+<select id="subjectSel"></select>
+<button onclick="addSubject()">+SUB</button>
+<button onclick="toggleTheme()">THEME</button>
+</div>
+
+<div class="circle">
+<svg>
+<circle cx="100" cy="100" r="90" class="bg"></circle>
+<circle cx="100" cy="100" r="90" class="fg" id="ring"></circle>
+</svg>
+<div class="time" id="time">25:00</div>
+</div>
+
+<div class="grid3">
+<button onclick="start()">START</button>
+<button onclick="pause()">PAUSE</button>
+<button onclick="reset()">RESET</button>
+</div>
+
+<div class="row">
+<input id="fMin" type="number" placeholder="focus">
+<input id="bMin" type="number" placeholder="break">
+<button onclick="applyCustom()">SET</button>
+</div>
+
+<div class="grid3">
+<button onclick="toggleLock()">LOCK</button>
+<button onclick="exportReport()">REPORT</button>
+<button onclick="syncNow()">SYNC</button>
+</div>
+
+<canvas id="chart" height="160"></canvas>
+
+<div class="small" id="streakTxt"></div>
+<div class="small" id="scoreTxt"></div>
+
+<div class="history" id="history"></div>
+</div>
+
+<script>
+/* ================= MOBILE COMPAT ================= */
+document.addEventListener('touchstart',()=>{}, {passive:true});
+
+/* ================= THEME ================= */
+function toggleTheme(){document.body.classList.toggle('light'); drawChart();}
+
+/* ================= SUBJECTS ================= */
+function addSubject(){const n=prompt("Subject"); if(!n) return; const s=getSubs(); s.push(n); localStorage.subs=JSON.stringify(s); loadSubs();}
+function getSubs(){return JSON.parse(localStorage.subs||'["General"]')}
+function loadSubs(){subjectSel.innerHTML=getSubs().map(x=>`<option>${x}</option>`).join('')}
+
+/* ================= TIMER ================= */
+let focus=25, brk=5, left=1500, total=1500, t=null, isFocus=true, lock=false;
+const CIRC=565;
+
+function fmt(s){return String(Math.floor(s/60)).padStart(2,'0')+":"+String(s%60).padStart(2,'0')}
+function draw(){time.textContent=fmt(left); ring.style.strokeDashoffset=CIRC-((total-left)/total)*CIRC}
+
+function tick(){left--; if(left<=0) done(); draw()}
+function start(){if(lock) requestFullscreen(); if(!t) t=setInterval(tick,1000)}
+function pause(){clearInterval(t);t=null}
+function reset(){pause(); left=(isFocus?focus:brk)*60; total=left; draw()}
+function done(){pause(); saveSession(); isFocus=!isFocus; left=(isFocus?focus:brk)*60; total=left; draw()}
+
+function applyCustom(){const f=+fMin.value,b=+bMin.value; if(f>0)focus=f; if(b>0)brk=b; reset()}
+
+/* ================= LOCK + DISTRACTION ================= */
+let distractions=0;
+function toggleLock(){lock=!lock}
+window.addEventListener('blur',()=>{ if(lock&&t){distractions++; lockOverlay.classList.add('show')} updateScore() })
+document.addEventListener('visibilitychange',()=>{ if(document.hidden&&lock&&t){distractions++; lockOverlay.classList.add('show')} updateScore() })
+document.addEventListener('click',()=>lockOverlay.classList.remove('show'))
+
+/* ================= DATA ================= */
+function getData(){return JSON.parse(localStorage.pomo||'[]')}
+function saveSession(){
+ const arr=getData();
+ arr.push({s:subjectSel.value,m:focus,d:Date.now()});
+ localStorage.pomo=JSON.stringify(arr);
+ render(); drawChart(); updateScore(); updateStreak();
+}
+
+function render(){history.innerHTML=getData().slice(-20).reverse().map(x=>`<div class=item>${x.s} — ${x.m}m</div>`).join('')}
+
+/* ================= ANALYTICS CHART ================= */
+let chart;
+function drawChart(){
+ const data=getData();
+ const map={}; data.forEach(x=>map[x.s]=(map[x.s]||0)+x.m);
+ const labels=Object.keys(map);
+ const vals=Object.values(map);
+ if(chart) chart.destroy();
+ chart=new Chart(chartCtx,{type:'bar',data:{labels,datasets:[{data:vals}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:getComputedStyle(document.body).color}},y:{ticks:{color:getComputedStyle(document.body).color}}}}});
+}
+const chartCtx=document.getElementById('chart');
+
+/* ================= STREAK CALENDAR ================= */
+function updateStreak(){
+ const days=[...new Set(getData().map(x=>new Date(x.d).toDateString()))];
+ streakTxt.textContent="Active days: "+days.length;
+}
+
+/* ================= DISTRACTION SCORE ================= */
+function updateScore(){
+ const sessions=getData().length||1;
+ const score=Math.max(0,100 - distractions*10);
+ scoreTxt.textContent="Focus score: "+score+"/100";
+}
+
+/* ================= REPORT EXPORT ================= */
+function exportReport(){
+ const data=getData();
+ const txt=data.map(x=>`${x.s} — ${x.m}m — ${new Date(x.d).toLocaleString()}`).join("\n");
+ const blob=new Blob([txt],{type:'text/plain'});
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='study_report.txt';
+ a.click();
+}
+
+/* ================= CROSS DEVICE SYNC (SIMPLE BACKEND READY) =================
+Uses a simple JSONBin-style endpoint — replace URL with your backend later
+*/
+const SYNC_KEY="focus_sync_v1";
+async function syncNow(){
+ const payload=getData();
+ localStorage[SYNC_KEY]=JSON.stringify(payload); // fallback local
+ alert("Sync saved locally — connect backend URL to enable cloud sync");
+}
+
+/* ================= INIT ================= */
+loadSubs(); render(); draw(); drawChart(); updateStreak(); updateScore();
+
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js')}
+</script>
+</body>
+</html>
