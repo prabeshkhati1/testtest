@@ -144,4 +144,115 @@ Hi, I'm <b>Prabesh Khati</b> — a software engineering student who enjoys exper
 <a href="https://www.linkedin.com/in/prabesh-khati-564627373?utm_source=share_via&utm_content=profile&utm_medium=member_ios" target="_blank">💼</a>
 <a href="https://github.com/prabeshkhati1" target="_blank">🐙</a>
 </div>
-<button onclick=
+<button onclick="hideAbout()">BACK</button>
+</div>
+
+<!-- OVERLAY -->
+<div class="overlay" id="lockOverlay">
+<h1>FOCUS LOCK</h1>
+<div class="small">Session active — return to focus</div>
+</div>
+
+<!-- APP -->
+<div class="card stack" id="app" style="display:none">
+<h1>FOCUS TIMER</h1>
+
+<div class="row">
+<select id="subjectSel"></select>
+<button onclick="addSubject()">+ SUBJECT</button>
+<button onclick="toggleTheme()" id="themeBtn">LIGHT</button>
+</div>
+
+<div class="circle">
+<svg>
+<circle cx="105" cy="105" r="90" class="bg"></circle>
+<circle cx="105" cy="105" r="90" class="fg" id="ring"></circle>
+</svg>
+<div class="time" id="time">25:00</div>
+</div>
+
+<div class="grid3">
+<button onclick="start()">START</button>
+<button onclick="pause()">PAUSE</button>
+<button onclick="reset()">RESET</button>
+</div>
+
+<div class="row">
+<input id="focusMin" placeholder="focus" type="number">
+<input id="breakMin" placeholder="break" type="number">
+<button onclick="applyCustom()">SET</button>
+</div>
+
+<div class="grid3">
+<button onclick="toggleLock()" id="lockBtn">LOCK OFF</button>
+<button onclick="toggleRain()" id="rainBtn">RAIN OFF</button>
+<button onclick="logout()">LOGOUT</button>
+</div>
+
+<div class="tree" id="tree"></div>
+<div class="history" id="history"></div>
+</div>
+
+<script>
+/* ===== AUTH ===== */
+function signup(){localStorage.acc_user=user.value;localStorage.acc_pass=pass.value;alert("Account created")}
+function login(){
+ if(user.value===localStorage.acc_user && pass.value===localStorage.acc_pass) enter();
+ else alert("Invalid username or password");
+}
+function guestLogin(){enter()}
+function logout(){pause();loginPage.style.display="block";aboutPage.style.display="none";app.style.display="none"}
+function enter(){loginPage.style.display="none";aboutPage.style.display="none";app.style.display="block";initSubjects();draw();render()}
+
+/* ABOUT */
+function showAbout(){loginPage.style.display="none";aboutPage.style.display="block"}
+function hideAbout(){aboutPage.style.display="none";loginPage.style.display="block"}
+
+/* THEME */
+function toggleTheme(){document.body.classList.toggle('light');themeBtn.textContent=document.body.classList.contains('light')?"DARK":"LIGHT"}
+
+/* SUBJECTS */
+function initSubjects(){const s=JSON.parse(localStorage.subs||'["General"]');subjectSel.innerHTML=s.map(x=>`<option>${x}</option>`).join('')}
+function addSubject(){const n=prompt("Subject name");if(!n)return;const s=JSON.parse(localStorage.subs||"[]");s.push(n);localStorage.subs=JSON.stringify(s);initSubjects()}
+
+/* TIMER */
+let focus=25, brk=5, left=1500, total=1500, t=null, isFocus=true, lock=false;
+const CIRC=565;
+
+function fmt(s){return String(Math.floor(s/60)).padStart(2,'0')+":"+String(s%60).padStart(2,'0')}
+function draw(){time.textContent=fmt(left);ring.style.strokeDashoffset=CIRC-((total-left)/total)*CIRC}
+function tick(){left--;time.classList.add('tick');setTimeout(()=>time.classList.remove('tick'),120);if(left<=0)done();draw()}
+
+function start(){soundStart();if(lock) goFS(); if(!t)t=setInterval(tick,1000)}
+function pause(){soundCancel();clearInterval(t);t=null}
+function reset(){pause();left=(isFocus?focus:brk)*60;total=left;draw()}
+function done(){soundDone();pause();save();isFocus=!isFocus;left=(isFocus?focus:brk)*60;total=left;unlockBreak();draw()}
+
+function applyCustom(){const f=parseInt(focusMin.value),b=parseInt(breakMin.value);if(f>0)focus=f;if(b>0)brk=b;reset()}
+
+/* AUDIO — shared context */
+const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+function tone(freq,dur){const o=audioCtx.createOscillator();const g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.frequency.value=freq;o.start();g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+dur)}
+function soundStart(){tone(520,.2)}
+function soundDone(){tone(880,.35)}
+function soundCancel(){tone(260,.2)}
+
+/* RAIN */
+function toggleRain(){rainFx.classList.toggle('on');rainBtn.textContent=rainFx.classList.contains('on')?"RAIN ON":"RAIN OFF"}
+
+/* LOCK */
+function toggleLock(){lock=!lock;lockBtn.textContent=lock?"LOCK ON":"LOCK OFF"}
+function goFS(){document.documentElement.requestFullscreen?.()}
+window.addEventListener('blur',()=>{if(lock&&isFocus&&t)lockOverlay.classList.add('show')})
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&lock&&isFocus&&t)lockOverlay.classList.add('show')})
+function unlockBreak(){if(!isFocus)lockOverlay.classList.remove('show')}
+
+/* DATA */
+function save(){const arr=JSON.parse(localStorage.pomo||"[]");arr.unshift({s:subjectSel.value,m:focus});localStorage.pomo=JSON.stringify(arr);render();grow(arr.length)}
+function grow(n){tree.textContent=[".","🌱","🌿","🌳"][Math.min(3,Math.floor(n/2))]}
+function render(){const arr=JSON.parse(localStorage.pomo||"[]");history.innerHTML=arr.map(x=>`<div class=item>${x.s} — ${x.m}m</div>`).join('')}
+
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js')}
+</script>
+</body>
+</html>
