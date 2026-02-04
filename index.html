@@ -19,8 +19,8 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:monospace;min-hei
 h1{text-align:center;font-size:16px;letter-spacing:2px;margin:0}
 .small{font-size:11px;opacity:.75;text-align:center}
 
-.row{display:flex;gap:8px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.row{display:flex;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 
 button,input,select{border:1px solid var(--border);background:var(--bg);color:var(--fg);font-family:monospace}
 button{padding:14px 8px;font-size:12px;cursor:pointer;transition:.18s}
@@ -35,22 +35,10 @@ svg{width:100%;height:100%;transform:rotate(-90deg)}
 .time{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:40px;transition:.25s}
 .time.tick{transform:scale(1.08)}
 
-.overlay{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:9999}
-.overlay.show{display:flex}
-
 .history{max-height:160px;overflow:auto;border-top:1px solid var(--border);padding-top:8px;font-size:11px}
 .item{padding:6px 0;border-bottom:1px dashed var(--border);animation:slide .3s ease}
 
 .tree{text-align:center;font-size:12px}
-
-/* rain bg */
-.rain{
- position:fixed;inset:0;pointer-events:none;opacity:.15;display:none;
- background-image:repeating-linear-gradient(180deg,var(--fg) 0 2px,transparent 2px 20px);
- animation:rain 0.6s linear infinite;
-}
-.rain.on{display:block}
-@keyframes rain{from{background-position:0 0}to{background-position:0 40px}}
 
 .socials{display:flex;gap:12px;justify-content:center}
 .socials a{font-size:22px;text-decoration:none}
@@ -67,8 +55,6 @@ svg{width:100%;height:100%;transform:rotate(-90deg)}
 </style>
 </head>
 <body>
-
-<div class="rain" id="rainFx"></div>
 
 <!-- LOGIN -->
 <div class="login stack" id="loginPage">
@@ -89,7 +75,7 @@ svg{width:100%;height:100%;transform:rotate(-90deg)}
 <h1>ABOUT THE DEVELOPER</h1>
 <div class="small">
 Hi, I'm <b>Prabesh Khati</b> — a software engineering student who enjoys experimenting with AI systems, UI design, and building practical tools that people actually use.  
-I like turning ideas into minimal, functional products — and then over‑engineering them for fun.  
+I like turning ideas into minimal, functional products — and then over-engineering them for fun.  
 If it involves AI, clean UI, automation, or performance tweaks — I’m probably already testing it.
 </div>
 
@@ -100,12 +86,6 @@ If it involves AI, clean UI, automation, or performance tweaks — I’m probabl
 
 <div class="small">LinkedIn • GitHub</div>
 <button onclick="hideAbout()">BACK</button>
-</div>
-
-<!-- OVERLAY -->
-<div class="overlay" id="lockOverlay">
-<h1>FOCUS LOCK</h1>
-<div class="small">Session active — return to focus</div>
 </div>
 
 <!-- APP -->
@@ -139,8 +119,6 @@ If it involves AI, clean UI, automation, or performance tweaks — I’m probabl
 </div>
 
 <div class="grid3">
-<button onclick="toggleLock()" id="lockBtn">LOCK OFF</button>
-<button onclick="toggleRain()" id="rainBtn">RAIN OFF</button>
 <button onclick="logout()">LOGOUT</button>
 </div>
 
@@ -149,59 +127,42 @@ If it involves AI, clean UI, automation, or performance tweaks — I’m probabl
 </div>
 
 <script>
-/* AUTH FIX */
 function signup(){localStorage.acc_user=user.value;localStorage.acc_pass=pass.value;alert("Account created")}
 function login(){
  if(user.value===localStorage.acc_user && pass.value===localStorage.acc_pass) enter();
  else alert("Invalid username or password");
 }
-function guestLogin(){enter()} // ✅ fixed — no validation
+function guestLogin(){enter()}
 function logout(){location.reload()}
 function enter(){loginPage.style.display="none";app.style.display="block";initSubjects();draw();render()}
 
-/* ABOUT */
 function showAbout(){loginPage.style.display="none";aboutPage.style.display="block"}
 function hideAbout(){aboutPage.style.display="none";loginPage.style.display="block"}
 
-/* THEME */
 function toggleTheme(){document.body.classList.toggle('light');themeBtn.textContent=document.body.classList.contains('light')?"DARK":"LIGHT"}
 
-/* SUBJECTS */
 function initSubjects(){const s=JSON.parse(localStorage.subs||"['General']".replace(/'/g,'"'));subjectSel.innerHTML=s.map(x=>`<option>${x}</option>`).join('')}
 function addSubject(){const n=prompt("Subject name");if(!n)return;const s=JSON.parse(localStorage.subs||"[]");s.push(n);localStorage.subs=JSON.stringify(s);initSubjects()}
 
-/* TIMER */
-let focus=25, brk=5, left=1500, total=1500, t=null, isFocus=true, lock=false;
+let focus=25, brk=5, left=1500, total=1500, t=null, isFocus=true;
 const CIRC=565;
 
 function fmt(s){return String(Math.floor(s/60)).padStart(2,'0')+":"+String(s%60).padStart(2,'0')}
 function draw(){time.textContent=fmt(left);ring.style.strokeDashoffset=CIRC-((total-left)/total)*CIRC}
 function tick(){left--;time.classList.add('tick');setTimeout(()=>time.classList.remove('tick'),120);if(left<=0)done();draw()}
 
-function start(){soundStart();if(lock) goFS(); if(!t)t=setInterval(tick,1000)}
+function start(){soundStart(); if(!t)t=setInterval(tick,1000)}
 function pause(){soundCancel();clearInterval(t);t=null}
 function reset(){pause();left=(isFocus?focus:brk)*60;total=left;draw()}
-function done(){soundDone();pause();save();isFocus=!isFocus;left=(isFocus?focus:brk)*60;total=left;unlockBreak();draw()}
+function done(){soundDone();pause();save();isFocus=!isFocus;left=(isFocus?focus:brk)*60;total=left;draw()}
 
 function applyCustom(){const f=parseInt(focusMin.value),b=parseInt(breakMin.value);if(f>0)focus=f;if(b>0)brk=b;reset()}
 
-/* SOUNDS (satisfying tones) */
 function tone(freq,dur){const c=new AudioContext();const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=freq;o.start();g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur)}
 function soundStart(){tone(520,.2)}
 function soundDone(){tone(880,.4)}
 function soundCancel(){tone(260,.2)}
 
-/* RAIN */
-function toggleRain(){rainFx.classList.toggle('on');rainBtn.textContent=rainFx.classList.contains('on')?"RAIN ON":"RAIN OFF"}
-
-/* LOCK */
-function toggleLock(){lock=!lock;lockBtn.textContent=lock?"LOCK ON":"LOCK OFF"}
-function goFS(){document.documentElement.requestFullscreen?.()}
-window.addEventListener('blur',()=>{if(lock&&isFocus&&t)lockOverlay.classList.add('show')})
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&lock&&isFocus&&t)lockOverlay.classList.add('show')})
-function unlockBreak(){if(!isFocus)lockOverlay.classList.remove('show')}
-
-/* DATA */
 function save(){const arr=JSON.parse(localStorage.pomo||"[]");arr.unshift({s:subjectSel.value,m:focus});localStorage.pomo=JSON.stringify(arr);render();grow(arr.length)}
 function grow(n){tree.textContent=[".","🌱","🌿","🌳"][Math.min(3,Math.floor(n/2))]}
 function render(){const arr=JSON.parse(localStorage.pomo||"[]");history.innerHTML=arr.map(x=>`<div class=item>${x.s} — ${x.m}m</div>`).join('')}
